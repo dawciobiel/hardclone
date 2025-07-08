@@ -71,6 +71,11 @@ fsarchiver
 testdisk
 # safecopy
 
+# Narzędzia dyskowe
+util-linux
+gparted
+grub
+
 # Narzędzia szyfrowania
 cryptsetup
 gnupg
@@ -83,6 +88,7 @@ vsftpd
 # pure-ftpd
 nfs-utils
 lighttpd
+konsole
 
 # Edytory i narzędzia
 neovim
@@ -95,6 +101,10 @@ htop
 glances
 irssi
 screen
+
+# Programowanie
+python3-pyside6
+
 
 # Minimal GUI
 xorg-server

@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 
 from PySide6.QtCore import Qt, Signal, QThread
+from PySide6.QtWidgets import QInputDialog
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QComboBox, QPushButton,
                                QLineEdit, QCheckBox, QSpinBox, QProgressBar, QTextEdit, QGroupBox, QFrame, QFileDialog, QMessageBox,
@@ -50,6 +51,17 @@ class Partition:
     @property
     def usage_percent(self) -> float:
         return (self.used / self.size * 100) if self.size > 0 else 0
+
+    @property
+    def pretty_size(self) -> str:
+        """Return size as string with unit, e.g., '500 MB' or '2.5 GB'"""
+        gb = self.size / (1024 ** 3)
+        if gb >= 1:
+            return f"{gb:.1f} GB"
+        else:
+            mb = self.size / (1024 ** 2)
+            return f"{mb:.0f} MB"
+
 
 
 @dataclass
@@ -108,12 +120,13 @@ class DDWorkerThread(QThread):
     operation_finished = Signal(bool, str)  # success, message
     log_message = Signal(str)
 
-    def __init__(self, source_device, target_file, options, sudo_password=None):
+    def __init__(self, source_device, target_file, options, sudo_password=None, encryption_password=None):
         super().__init__()
         self.source_device = source_device
         self.target_file = target_file
         self.options = options
         self.sudo_password = sudo_password
+        self.encryption_password = encryption_password  # Dodaj hasło szyfrowania
         self.should_cancel = False
         self.process = None
         self.source_size = 0
@@ -136,68 +149,88 @@ class DDWorkerThread(QThread):
             self.operation_finished.emit(False, f"Error: {str(e)}")
 
     def get_device_size(self):
-        """Get device size using sudo if needed"""
+        """Get device size without sudo using lsblk"""
         try:
-            # First, check if blockdev exists and get its path
-            blockdev_path = "/sbin/blockdev"  # Common location
-            if not os.path.exists(blockdev_path):
-                # Try alternative locations
-                alternative_paths = ["/usr/sbin/blockdev", "/bin/blockdev", "/usr/bin/blockdev"]
-                for path in alternative_paths:
-                    if os.path.exists(path):
-                        blockdev_path = path
-                        break
-            else:
-                self.log_message.emit("Error: blockdev command not found. Please install util-linux package.")
-                return 0
-
-            # Now use the full path to blockdev
-            if self.sudo_password:
-                cmd = f"echo '{self.sudo_password}' | sudo -S {blockdev_path} --getsize64 {self.source_device} 2>/dev/null"
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            else:
-                cmd = [blockdev_path, "--getsize64", self.source_device]
-                result = subprocess.run(cmd, capture_output=True, text=True)
+            cmd = ["lsblk", "-b", "-dn", "-o", "SIZE", self.source_device]
+            result = subprocess.run(cmd, capture_output=True, text=True)
 
             if result.returncode == 0:
-                size = int(result.stdout.strip())
+                size_str = result.stdout.strip()
+                size = int(size_str)
                 if size > 0:
                     return size
                 else:
-                    self.log_message.emit("Error: Got zero size from blockdev command")
+                    self.log_message.emit("Error: Got zero size from lsblk command")
             else:
-                self.log_message.emit(f"Error: blockdev command failed with return code {result.returncode}")
+                self.log_message.emit(f"Error: lsblk command failed with return code {result.returncode}")
                 if result.stderr:
                     self.log_message.emit(f"Error details: {result.stderr}")
 
         except Exception as e:
             self.log_message.emit(f"Error getting device size: {str(e)}")
-        
+
         return 0
 
-
     def execute_dd_command(self):
-        """Execute the DD command"""
+        """Execute the DD command with optional compression and encryption"""
         try:
-            # Build command based on options
-            if self.options.get('compress', False):
-                if self.sudo_password:
-                    cmd = f"echo '{self.sudo_password}' | sudo -S dd if={self.source_device} bs=1M status=progress 2>&1 | gzip -c > {self.target_file}.gz"
-                else:
-                    cmd = f"dd if={self.source_device} bs=1M status=progress 2>&1 | gzip -c > {self.target_file}.gz"
+            # Sprawdź czy openssl jest dostępny dla szyfrowania
+            if self.options.get('encrypt', False):
+                try:
+                    subprocess.run(['openssl', 'version'], capture_output=True, check=True)
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    self.operation_finished.emit(False, "OpenSSL not found. Please install OpenSSL for encryption support.")
+                    return
+
+            # Buduj komendę w zależności od opcji
+            cmd_parts = []
+
+            # Część DD
+            if self.sudo_password:
+                dd_cmd = f"echo '{self.sudo_password}' | sudo -S dd if={self.source_device} bs=1M status=progress"
             else:
-                if self.sudo_password:
-                    cmd = f"echo '{self.sudo_password}' | sudo -S dd if={self.source_device} of={self.target_file} bs=1M status=progress"
-                else:
-                    cmd = f"dd if={self.source_device} of={self.target_file} bs=1M status=progress"
+                dd_cmd = f"dd if={self.source_device} bs=1M status=progress"
 
-            self.log_message.emit(f"Executing: {cmd.replace(self.sudo_password, '***') if self.sudo_password else cmd}")
+            cmd_parts.append(dd_cmd)
 
-            # Start process
-            self.process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
-                universal_newlines=True)
+            # Opcjonalne szyfrowanie
+            if self.options.get('encrypt', False) and self.encryption_password:
+                # Używamy AES-256-CBC z PBKDF2
+                encrypt_cmd = f"openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -pass pass:'{self.encryption_password}'"
+                cmd_parts.append(encrypt_cmd)
 
-            # Monitor progress
+            # Opcjonalna kompresja
+            if self.options.get('compress', False):
+                cmd_parts.append("gzip -c")
+
+            # Określ rozszerzenie pliku wyjściowego
+            output_file = self.target_file
+            if self.options.get('encrypt', False):
+                output_file += ".enc"
+            if self.options.get('compress', False):
+                output_file += ".gz"
+
+            # Przekierowanie do pliku
+            cmd_parts.append(f"> {output_file}")
+
+            # Połącz wszystkie części
+            full_cmd = " 2>&1 | ".join(cmd_parts[:-1]) + f" {cmd_parts[-1]}"
+
+            # Ukryj hasła w logach
+            log_cmd = full_cmd
+            if self.sudo_password:
+                log_cmd = log_cmd.replace(self.sudo_password, "***")
+            if self.encryption_password:
+                log_cmd = log_cmd.replace(self.encryption_password, "***")
+
+            self.log_message.emit(f"Executing: {log_cmd}")
+
+            # Uruchom proces
+            self.process = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE,
+                                          stderr=subprocess.STDOUT, text=True, bufsize=1,
+                                          universal_newlines=True)
+
+            # Monitoruj postęp
             self.monitor_progress()
 
         except Exception as e:
@@ -229,7 +262,20 @@ class DDWorkerThread(QThread):
                 returncode = self.process.returncode
                 if returncode == 0:
                     self.progress_updated.emit(100, "Operation completed successfully!")
-                    self.operation_finished.emit(True, "Image created successfully!")
+
+                    # Dodaj informacje o szyfrowania i kompresji w komunikacie
+                    features = []
+                    if self.options.get('encrypt', False):
+                        features.append("encrypted")
+                    if self.options.get('compress', False):
+                        features.append("compressed")
+
+                    if features:
+                        message = f"Image created successfully! ({', '.join(features)})"
+                    else:
+                        message = "Image created successfully!"
+
+                    self.operation_finished.emit(True, message)
                 else:
                     self.operation_finished.emit(False, f"Operation failed with return code: {returncode}")
 
@@ -267,6 +313,163 @@ class DDWorkerThread(QThread):
         self.should_cancel = True
 
 
+# Dodaj nową klasę dla dialogu hasła szyfrowania
+class EncryptionPasswordDialog(QDialog):
+    """Dialog for entering encryption password"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Encryption Password")
+        self.setModal(True)
+        self.setFixedSize(400, 200)
+
+        layout = QVBoxLayout()
+
+        # Info label
+        info_label = QLabel("Enter password for encryption:")
+        layout.addWidget(info_label)
+
+        # Password field
+        self.password_edit = QLineEdit()
+        self.password_edit.setEchoMode(QLineEdit.Password)
+        self.password_edit.setPlaceholderText("Enter encryption password")
+        layout.addWidget(self.password_edit)
+
+        # Confirm password field
+        confirm_label = QLabel("Confirm password:")
+        layout.addWidget(confirm_label)
+
+        self.confirm_edit = QLineEdit()
+        self.confirm_edit.setEchoMode(QLineEdit.Password)
+        self.confirm_edit.setPlaceholderText("Confirm encryption password")
+        layout.addWidget(self.confirm_edit)
+
+        # Warning label
+        warning_label = QLabel("⚠️ Warning: If you lose this password, you will NOT be able to recover your data!")
+        warning_label.setStyleSheet("color: red; font-weight: bold;")
+        warning_label.setWordWrap(True)
+        layout.addWidget(warning_label)
+
+        # Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.setLayout(layout)
+
+        # Focus on password field
+        self.password_edit.setFocus()
+
+    def accept(self):
+        """Override accept to validate passwords match"""
+        if self.password_edit.text() != self.confirm_edit.text():
+            QMessageBox.warning(self, "Password Mismatch", "Passwords do not match!")
+            return
+
+        if len(self.password_edit.text()) < 6:
+            QMessageBox.warning(self, "Weak Password", "Password must be at least 6 characters long!")
+            return
+
+        super().accept()
+
+    def get_password(self):
+        return self.password_edit.text()
+
+
+# Zmodyfikuj metodę create_image w DDGUIManager
+def create_image(self):
+    """Create disk/partition image"""
+    if not self.current_drive_widget:
+        self.show_error("No drive selected")
+        return
+
+    selected_partitions = self.current_drive_widget.get_selected_partitions()
+    if not selected_partitions:
+        self.show_error("No partitions selected")
+        return
+
+    target_file = self.target_edit.text().strip()
+    if not target_file:
+        self.show_error("No target file specified")
+        return
+
+    # Check if target file already exists
+    if os.path.exists(target_file):
+        reply = QMessageBox.question(self, "File exists", f"File {target_file} already exists. Do you want to overwrite it?",
+            QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.No:
+            return
+
+    # Get encryption password if encryption is enabled
+    encryption_password = None
+    if self.encrypt_check.isChecked():
+        dialog = EncryptionPasswordDialog(self)
+        if dialog.exec() == QDialog.Accepted:
+            encryption_password = dialog.get_password()
+        else:
+            self.log("Operation cancelled - no encryption password provided")
+            return
+
+    # Check if we need sudo and get password
+    source_device = selected_partitions[0].device
+    sudo_password = None
+
+    # First try without sudo
+    try:
+        with open(source_device, 'rb') as f:
+            f.read(1)
+    except PermissionError:
+        # Need sudo, ask for password
+        self.log("Administrator privileges required for accessing block device")
+        dialog = SudoPasswordDialog(self)
+        if dialog.exec() == QDialog.Accepted:
+            sudo_password = dialog.get_password()
+            # Verify the password works
+            test_cmd = f"echo '{sudo_password}' | sudo -S -v 2>/dev/null"
+            if subprocess.run(test_cmd, shell=True).returncode != 0:
+                self.show_error("Invalid administrator password")
+                return
+        else:
+            self.log("Operation cancelled - no password provided")
+            return
+    except Exception as e:
+        self.show_error(f"Error accessing device: {str(e)}")
+        return
+
+    # Prepare options
+    options = {
+        'compress': self.compress_check.isChecked(),
+        'encrypt': self.encrypt_check.isChecked(),
+        'split': self.split_check.isChecked(),
+        'split_size': self.split_size.value() if self.split_check.isChecked() else None
+    }
+
+    self.log(f"Starting image creation {source_device} -> {target_file}")
+    if options['encrypt']:
+        self.log("Encryption enabled (AES-256-CBC)")
+    if options['compress']:
+        self.log("Compression enabled (gzip)")
+
+    # Create and start worker thread
+    self.worker_thread = DDWorkerThread(source_device, target_file, options, sudo_password, encryption_password)
+
+    # Connect signals
+    self.worker_thread.progress_updated.connect(self.on_progress_updated)
+    self.worker_thread.operation_finished.connect(self.on_operation_finished)
+    self.worker_thread.log_message.connect(self.log)
+
+    # Update UI
+    self.create_btn.setEnabled(False)
+    self.cancel_btn.setEnabled(True)
+    self.progress_bar.setVisible(True)
+    self.status_label.setVisible(True)
+    self.progress_bar.setValue(0)
+
+    # Start the thread
+    self.worker_thread.start()
+
+
 class PartitionWidget(QFrame):
     """Widget representing a partition"""
     clicked = Signal(object)
@@ -292,7 +495,7 @@ class PartitionWidget(QFrame):
         device_label.setFont(QFont("Arial", 10, QFont.Bold))
 
         # Partition information
-        info_text = f"{self.partition.fstype} | {self.partition.size_gb:.1f} GB"
+        info_text = f"{self.partition.fstype} | {self.partition.pretty_size}"
         if self.partition.label:
             info_text += f" | {self.partition.label}"
         info_label = QLabel(info_text)
@@ -340,10 +543,9 @@ class PartitionWidget(QFrame):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self.selected = not self.selected
-            self.updateStyle()
+            # Usuwamy zmianę stanu selected z tego miejsca
+            # Teraz tylko sygnalizujemy kliknięcie
             self.clicked.emit(self)
-
 
 class DriveWidget(QWidget):
     """Widget representing a drive with partitions"""
@@ -352,6 +554,7 @@ class DriveWidget(QWidget):
         super().__init__(parent)
         self.drive = drive
         self.partition_widgets = []
+        self.selected_partition_widget = None  # Dodajemy zmienną do śledzenia wybranej partycji
         self.setupUI()
 
     def setupUI(self):
@@ -394,12 +597,28 @@ class DriveWidget(QWidget):
         self.setLayout(layout)
 
     def on_partition_clicked(self, partition_widget):
-        """Handle partition click"""
-        pass
+        """Handle partition click - allow only single selection"""
+        # Jeśli kliknięto na już wybraną partycję, odznacz ją
+        if self.selected_partition_widget == partition_widget:
+            self.selected_partition_widget.selected = False
+            self.selected_partition_widget.updateStyle()
+            self.selected_partition_widget = None
+        else:
+            # Odznacz poprzednio wybraną partycję
+            if self.selected_partition_widget:
+                self.selected_partition_widget.selected = False
+                self.selected_partition_widget.updateStyle()
+
+            # Zaznacz nową partycję
+            partition_widget.selected = True
+            partition_widget.updateStyle()
+            self.selected_partition_widget = partition_widget
 
     def get_selected_partitions(self) -> List[Partition]:
-        """Returns list of selected partitions"""
-        return [pw.partition for pw in self.partition_widgets if pw.selected]
+        """Returns list of selected partitions (max 1)"""
+        if self.selected_partition_widget:
+            return [self.selected_partition_widget.partition]
+        return []
 
 
 class SystemInfoCollector:
@@ -434,19 +653,19 @@ class SystemInfoCollector:
             # Try without sudo first
             cmd = ["blockdev", "--getsize64", device_path]
             result = subprocess.run(cmd, capture_output=True, text=True)
-            
+
             if result.returncode == 0:
                 return int(result.stdout.strip())
-            
+
             # If failed, try with sudo
             if sudo_password:
                 cmd = f"echo '{sudo_password}' | sudo -S blockdev --getsize64 {device_path}"
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
                 if result.returncode == 0:
                     return int(result.stdout.strip())
-            
+
             raise Exception("Failed to get device size")
-            
+
         except Exception as e:
             print(f"Error getting device size: {e}")
             return 0
@@ -480,15 +699,18 @@ class SystemInfoCollector:
             label = partition_data.get("label", "")
 
             # Get usage information
-            size = used = free = 0
+            size_str = partition_data.get("size", "0B")
+            size = SystemInfoCollector._parse_size(size_str)
+
+            used = free = 0
             if mountpoint:
                 try:
                     usage = psutil.disk_usage(mountpoint)
-                    size = usage.total
                     used = usage.used
                     free = usage.free
                 except:
                     pass
+
 
             return Partition(device=device, mountpoint=mountpoint, fstype=fstype, size=size, used=used, free=free, label=label)
         except Exception as e:
@@ -528,9 +750,10 @@ class DDGUIManager(QMainWindow):
         self.worker_thread = None
         self.setupUI()
         self.loadDrives()
+        self.showMaximized()
 
     def setupUI(self):
-        self.setWindowTitle("DD GUI Manager - Disk Image Creator")
+        self.setWindowTitle("DD GUI Manager - Disk Image Creator v0.7.0-alpha.1")
         self.setMinimumSize(1000, 700)
 
         # Main widget
@@ -728,7 +951,8 @@ class DDGUIManager(QMainWindow):
     def browse_target_file(self):
         """Browse for target file"""
         filename, _ = QFileDialog.getSaveFileName(self, "Save image as...",
-            f"disk_image_{self.drive_combo.currentText().split()[0].replace('/', '_')}.img", "Image files (*.img);;All files (*)")
+                                                  f"disk_image_{self.drive_combo.currentText().split()[0].replace('/', '_')}.img",
+                                                  "Image files (*.img);;All files (*)")
 
         if filename:
             self.target_edit.setText(filename)
@@ -770,19 +994,15 @@ class DDGUIManager(QMainWindow):
 
         # Check if target file already exists
         if os.path.exists(target_file):
-            reply = QMessageBox.question(
-                self,
-                "File exists",
-                f"File {target_file} already exists. Do you want to overwrite it?",
-                QMessageBox.Yes | QMessageBox.No
-            )
+            reply = QMessageBox.question(self, "File exists", f"File {target_file} already exists. Do you want to overwrite it?",
+                QMessageBox.Yes | QMessageBox.No)
             if reply == QMessageBox.No:
                 return
 
         # Check if we need sudo and get password
         source_device = selected_partitions[0].device
         sudo_password = None
-        
+
         # First try without sudo
         try:
             with open(source_device, 'rb') as f:
@@ -806,19 +1026,13 @@ class DDGUIManager(QMainWindow):
             return
 
         # Prepare options
-        options = {
-            'compress': self.compress_check.isChecked(),
-            'encrypt': self.encrypt_check.isChecked(),
-            'split': self.split_check.isChecked(),
-            'split_size': self.split_size.value() if self.split_check.isChecked() else None
-        }
+        options = {'compress': self.compress_check.isChecked(), 'encrypt': self.encrypt_check.isChecked(),
+            'split': self.split_check.isChecked(), 'split_size': self.split_size.value() if self.split_check.isChecked() else None}
 
         self.log(f"Starting image creation {source_device} -> {target_file}")
 
         # Create and start worker thread
-        self.worker_thread = DDWorkerThread(
-            source_device, target_file, options, sudo_password
-        )
+        self.worker_thread = DDWorkerThread(source_device, target_file, options, sudo_password)
 
         # Connect signals
         self.worker_thread.progress_updated.connect(self.on_progress_updated)
@@ -895,7 +1109,7 @@ class DDGUIManager(QMainWindow):
         """Handle window close event"""
         if self.worker_thread and self.worker_thread.isRunning():
             reply = QMessageBox.question(self, "Operation in progress", "An operation is in progress. Do you want to cancel it and exit?",
-                QMessageBox.Yes | QMessageBox.No)
+                                         QMessageBox.Yes | QMessageBox.No)
             if reply == QMessageBox.Yes:
                 self.worker_thread.cancel()
                 self.worker_thread.wait(5000)  # Wait up to 5 seconds

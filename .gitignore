@@ -134,3 +134,6 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+/linux-distro/archiso_work/
+/linux-distro/hardclone-arch/

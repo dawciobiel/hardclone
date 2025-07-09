@@ -108,13 +108,16 @@ class SystemInfoCollector:
         if not size_str:
             return 0
 
-        size_str = size_str.upper()
-        multipliers = {'B': 1, 'K': 1024, 'M': 1024 ** 2, 'G': 1024 ** 3, 'T': 1024 ** 4}
+        size_str = size_str.strip().upper()
+        size_str = size_str.replace(',', '.')  # Zamień przecinek na kropkę
+
+        multipliers = {'B': 1, 'K': 1024, 'M': 1024 ** 2, 'G': 1024 ** 3, 'T': 1024 ** 4, 'P': 1024 ** 5}
 
         for suffix, multiplier in multipliers.items():
             if size_str.endswith(suffix):
+                number_part = size_str[:-len(suffix)].strip()
                 try:
-                    number = float(size_str[:-1])
+                    number = float(number_part)
                     return int(number * multiplier)
                 except:
                     return 0

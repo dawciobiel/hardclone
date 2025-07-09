@@ -14,7 +14,7 @@ class DriveWidget(QWidget):
         super().__init__(parent)
         self.drive = drive
         self.partition_widgets = []
-        self.selected_partition_widget = None  # Dodajemy zmienną do śledzenia wybranej partycji
+        self.selected_partition_widget = None
         self.setupUI()
 
     def setupUI(self):

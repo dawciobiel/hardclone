@@ -57,7 +57,6 @@ class DriveWidget(QWidget):
 
     def on_partition_clicked(self, partition_widget):
         """Handle partition click - allow only single selection"""
-        # Jeśli kliknięto na już wybraną partycję, odznacz ją
         if self.selected_partition_widget == partition_widget:
             self.selected_partition_widget.selected = False
             self.selected_partition_widget.updateStyle()

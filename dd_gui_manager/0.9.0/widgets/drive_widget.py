@@ -1,10 +1,11 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QLabel
+from typing import List
+
 from PySide6.QtGui import QFont
-from PySide6.QtCore import Qt
-from widgets.partition_widget import PartitionWidget
-from models import Partition
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QLabel
 from models import DriveInfo
-from typing import List, Optional, Dict, Any
+from models import Partition
+from widgets.partition_widget import PartitionWidget
+
 
 class DriveWidget(QWidget):
     """Widget representing a drive with partitions"""
@@ -77,4 +78,3 @@ class DriveWidget(QWidget):
         if self.selected_partition_widget:
             return [self.selected_partition_widget.partition]
         return []
-

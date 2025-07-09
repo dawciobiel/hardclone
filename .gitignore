@@ -137,3 +137,6 @@ dmypy.json
 
 /linux-distro/archiso_work/
 /linux-distro/hardclone-arch/
+
+# Image files
+*.img

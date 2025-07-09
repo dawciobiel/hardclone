@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QDialog, QLineEdit, QLabel, QVBoxLayout, QDialogButtonBox, QMessageBox
 
+
 class SudoPasswordDialog(QDialog):
     """Dialog for entering sudo password"""
 
@@ -34,6 +35,7 @@ class SudoPasswordDialog(QDialog):
 
     def get_password(self):
         return self.password_edit.text()
+
 
 # Dodaj nową klasę dla dialogu hasła szyfrowania
 class EncryptionPasswordDialog(QDialog):

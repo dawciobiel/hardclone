@@ -1,7 +1,9 @@
-from PySide6.QtCore import QThread, Signal
-import subprocess
 import re
+import subprocess
 import time
+
+from PySide6.QtCore import QThread, Signal
+
 
 class DDWorkerThread(QThread):
     """Worker thread for DD operations"""
@@ -116,9 +118,8 @@ class DDWorkerThread(QThread):
             self.log_message.emit(f"Executing: {log_cmd}")
 
             # Uruchom proces
-            self.process = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE,
-                                          stderr=subprocess.STDOUT, text=True, bufsize=1,
-                                          universal_newlines=True)
+            self.process = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+                                            universal_newlines=True)
 
             # Monitoruj postęp
             self.monitor_progress()

@@ -1,8 +1,11 @@
 import json
 import subprocess
 from typing import List, Dict, Any, Optional
+
 import psutil
+
 from models import Partition, DriveInfo
+
 
 class SystemInfoCollector:
     """Class for collecting system information"""
@@ -94,7 +97,6 @@ class SystemInfoCollector:
                 except:
                     pass
 
-
             return Partition(device=device, mountpoint=mountpoint, fstype=fstype, size=size, used=used, free=free, label=label)
         except Exception as e:
             print(f"Error parsing partition: {e}")
@@ -121,4 +123,3 @@ class SystemInfoCollector:
             return int(float(size_str))
         except:
             return 0
-

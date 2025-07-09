@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 
+
 @dataclass
 class Partition:
     device: str
@@ -32,6 +33,7 @@ class Partition:
             mb = self.size / (1024 ** 2)
             return f"{mb:.0f} MB"
 
+
 @dataclass
 class DriveInfo:
     device: str
@@ -42,4 +44,3 @@ class DriveInfo:
     @property
     def size_gb(self):
         return self.size / (1024 ** 3)
-

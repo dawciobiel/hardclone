@@ -1,7 +1,8 @@
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel
 from models import Partition
+
 
 class PartitionWidget(QFrame):
     """Widget representing a partition"""
@@ -79,4 +80,3 @@ class PartitionWidget(QFrame):
             # Usuwamy zmianę stanu selected z tego miejsca
             # Teraz tylko sygnalizujemy kliknięcie
             self.clicked.emit(self)
-

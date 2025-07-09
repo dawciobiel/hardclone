@@ -1,12 +1,15 @@
 import os
-from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QComboBox, QPushButton, QLineEdit, QCheckBox, QSpinBox, QProgressBar, QTextEdit, QGroupBox, QFileDialog, QMessageBox, QScrollArea
-from PySide6.QtCore import Qt
-from system_info import SystemInfoCollector
-from workers import DDWorkerThread
+from typing import Optional
+
+from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QComboBox, QPushButton, QLineEdit, \
+    QCheckBox, QSpinBox, QProgressBar, QTextEdit, QGroupBox, QFileDialog, QMessageBox, QScrollArea
+
 from dialogs import SudoPasswordDialog, EncryptionPasswordDialog
-from widgets.drive_widget import DriveWidget
 from models import DriveInfo
-from typing import List, Optional, Dict, Any
+from system_info import SystemInfoCollector
+from widgets.drive_widget import DriveWidget
+from workers import DDWorkerThread
+
 
 class DDGUIManager(QMainWindow):
     """Main application window"""
@@ -271,7 +274,7 @@ class DDGUIManager(QMainWindow):
         # Check if target file already exists
         if os.path.exists(target_file):
             reply = QMessageBox.question(self, "File exists", f"File {target_file} already exists. Do you want to overwrite it?",
-                QMessageBox.Yes | QMessageBox.No)
+                                         QMessageBox.Yes | QMessageBox.No)
             if reply == QMessageBox.No:
                 return
 
@@ -312,12 +315,8 @@ class DDGUIManager(QMainWindow):
             return
 
         # Prepare options
-        options = {
-            'compress': self.compress_check.isChecked(),
-            'encrypt': self.encrypt_check.isChecked(),
-            'split': self.split_check.isChecked(),
-            'split_size': self.split_size.value() if self.split_check.isChecked() else None
-        }
+        options = {'compress': self.compress_check.isChecked(), 'encrypt': self.encrypt_check.isChecked(),
+                   'split': self.split_check.isChecked(), 'split_size': self.split_size.value() if self.split_check.isChecked() else None}
 
         self.log(f"Starting image creation {source_device} -> {target_file}")
         if options['encrypt']:

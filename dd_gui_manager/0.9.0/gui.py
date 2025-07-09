@@ -1,8 +1,9 @@
 import os
+import subprocess
 from typing import Optional
 
 from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QComboBox, QPushButton, QLineEdit, \
-    QCheckBox, QSpinBox, QProgressBar, QTextEdit, QGroupBox, QFileDialog, QMessageBox, QScrollArea
+    QCheckBox, QSpinBox, QProgressBar, QTextEdit, QGroupBox, QFileDialog, QMessageBox, QScrollArea, QDialog
 
 from dialogs import SudoPasswordDialog, EncryptionPasswordDialog
 from models import DriveInfo
@@ -215,7 +216,7 @@ class DDGUIManager(QMainWindow):
             self.log(f"Selected drive: {drive.device}")
 
     def show_drive_partitions(self, drive: DriveInfo):
-        """Show partitions of selected drive"""
+        """Show partitions of the selected drive"""
         # Remove previous widgets
         for i in reversed(range(self.partitions_layout.count())):
             child = self.partitions_layout.itemAt(i).widget()
@@ -229,8 +230,11 @@ class DDGUIManager(QMainWindow):
 
     def browse_target_file(self):
         """Browse for target file"""
-        filename, _ = QFileDialog.getSaveFileName(self, "Save image as...",
-                                                  f"disk_image_{self.drive_combo.currentText().split()[0].replace('/', '_')}.img",
+        selected_partition_list = self.current_drive_widget.get_selected_partitions()
+        selected_partition_name = selected_partition_list[0].device.replace('/', '_')
+        # old_selected_partition_name =  self.drive_combo.currentText().split()[0].replace('/', '_')
+
+        filename, _ = QFileDialog.getSaveFileName(self, "Save image as...", f"disk_image_{selected_partition_name}.img",
                                                   "Image files (*.img);;All files (*)")
 
         if filename:

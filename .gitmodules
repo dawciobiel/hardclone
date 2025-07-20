@@ -1,0 +1,9 @@
+[submodule "gui"]
+	path = gui
+	url = git@github.com:dawciobiel/hardclone-gui.git
+[submodule "cli"]
+	path = cli
+	url = git@github.com:dawciobiel/hardclone-cli.git
+[submodule "live"]
+	path = live
+	url = git@github.com:dawciobiel/hardclone-live.git

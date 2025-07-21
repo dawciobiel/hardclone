@@ -58,8 +58,11 @@ hardclone/
 
 ## 📜 License
 
-This project is licensed under the **MIT License**.
+This project is licensed under the **GNU General Public License v3.0**.
+
 Each submodule may carry its own license — please refer to the respective repositories.
+
+See the [`LICENSE`](LICENSE) file for full terms.
 
 ---
 

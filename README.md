@@ -5,7 +5,7 @@ It consists of three main components:
 
 - **Graphical User Interface (GUI)** — a user-friendly frontend built with Python.
 - **Command-Line Interface (CLI)** — a powerful Bash-based tool for advanced users and SSH environments.
-- **Live Linux Environment** — a bootable Linux system with both GUI and CLI preinstalled.
+- **Live Linux Environment** — a bootable Linux system with both GUI and CLI preinstalled. It's based on Arch. For now is recommended to use any other live Linux distribution instead.
 
 ---
 
@@ -60,7 +60,7 @@ hardclone/
 
 This project is licensed under the **GNU General Public License v3.0**.
 
-Each submodule may carry its own license — please refer to the respective repositories.
+Each submodule may carry its license — please refer to the respective repositories.
 
 See the [`LICENSE`](LICENSE) file for full terms.
 

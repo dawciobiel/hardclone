@@ -5,7 +5,7 @@ It consists of three main components:
 
 - **Graphical User Interface (GUI)** — a user-friendly frontend built with Python.
 - **Command-Line Interface (CLI)** — a powerful Bash-based tool for advanced users and SSH environments.
-- **Live Linux Environment** — a bootable Linux system with both GUI and CLI preinstalled. It's based on Arch. For now is recommended to use any other live Linux distribution instead.
+- **Live Linux Environment** — a bootable Linux system with both GUI and CLI preinstalled.
 
 ---
 

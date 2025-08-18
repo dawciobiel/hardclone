@@ -4,6 +4,6 @@
 [submodule "cli"]
 	path = cli
 	url = git@github.com:dawciobiel/hardclone-cli.git
-[submodule "live"]
-	path = live
-	url = git@github.com:dawciobiel/hardclone-live.git
+#[submodule "live"]
+#	path = live
+#	url = git@github.com:dawciobiel/hardclone-live.git

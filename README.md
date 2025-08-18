@@ -15,7 +15,7 @@ It consists of three main components:
 |----------------|----------------------------------------------------|------------|
 | **GUI**        | Graphical application written in Python            | [hardclone-gui](https://github.com/dawciobiel/hardclone-gui) |
 | **CLI**        | Console interface implemented in Bash              | [hardclone-cli](https://github.com/dawciobiel/hardclone-cli) |
-| **Live Linux** | Bootable Linux ISO with preinstalled Hardclone     | [hardclone-live](https://github.com/dawciobiel/hardclone-live) |
+| **Live Linux** | Bootable Linux ISO with preinstalled Hardclone     | ~~[hardclone-live](https://github.com/dawciobiel/hardclone-live)~~ |
 
 ---
 
@@ -50,7 +50,7 @@ Development for each component is handled in its respective repository.
 hardclone/
 ├── cli/      → Bash CLI tool (submodule)
 ├── gui/      → Python GUI application (submodule)
-├── live/     → Bootable Linux configuration (submodule)
+├── 
 └── README.md → This file
 ```
 

@@ -11,11 +11,12 @@ It consists of three main components:
 
 ## 🔧 Components
 
-| Name           | Description                                        | Repository |
-|----------------|----------------------------------------------------|------------|
-| **GUI**        | Graphical application written in Python            | [hardclone-gui](https://github.com/dawciobiel/hardclone-gui) |
-| **CLI**        | Console interface implemented in Bash              | [hardclone-cli](https://github.com/dawciobiel/hardclone-cli) |
-| **Live Linux** | Bootable Linux ISO with preinstalled Hardclone     | ~~[hardclone-live](https://github.com/dawciobiel/hardclone-live)~~ |
+| Name           | Description                                            | Repository |
+|----------------|--------------------------------------------------------|------------|
+| **GUI**        | Graphical application written in Python                | [hardclone-gui](https://github.com/dawciobiel/hardclone-gui) |
+| **CLI**        | Console interface implemented in Bash                  | [hardclone-cli](https://github.com/dawciobiel/hardclone-cli) |
+| **Live Linux** | Bootable Linux ISO with preinstalled Hardclone CLI     | [live-local-clonezilla](https://github.com/dawciobiel/live-local-clonezilla) |
+| **Live Linux** | Bootable Linux ISO with preinstalled Hardclone         | ~~[hardclone-live](https://github.com/dawciobiel/hardclone-live)~~ |
 
 ---
 
@@ -44,13 +45,13 @@ Development for each component is handled in its respective repository.
 
 ---
 
-## 📁 Directory structure
+## 📁 Project structure
 
 ```text
 hardclone/
-├── cli/      → Bash CLI tool (submodule)
-├── gui/      → Python GUI application (submodule)
-├── 
+├── cli/                        → Bash CLI tool (submodule)
+├── gui/                        → Python GUI application (submodule)
+├── live-local-clonezilla/      → Bootable Linux ISO with preinstalled Hardclone CLI version
 └── README.md → This file
 ```
 
